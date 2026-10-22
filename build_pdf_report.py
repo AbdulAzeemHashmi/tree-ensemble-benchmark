@@ -301,13 +301,15 @@ def generate_pdf():
         body_style
     ))
     
-    summary_data = [
-        [Paragraph("Model", table_cell_header), Paragraph("Test Accuracy", table_cell_header), Paragraph("Macro-F1", table_cell_header), Paragraph("Training Time", table_cell_header), Paragraph("Key Findings", table_cell_header)],
-        [Paragraph("<b>Decision Tree (Depth 9)</b>", table_cell), Paragraph("84.25% +- 0.00%", table_cell), Paragraph("0.8430 +- 0.000", table_cell), Paragraph("0.35s", table_cell), Paragraph("Fast and easy to read, but has high variance.", table_cell)],
-        [Paragraph("<b>Pruned Decision Tree</b>", table_cell), Paragraph("85.25% +- 0.00%", table_cell), Paragraph("0.8533 +- 0.000", table_cell), Paragraph("0.58s", table_cell), Paragraph("Leaves reduced from 82 to 54; test accuracy improved by +1.0%.", table_cell)],
-        [Paragraph("<b>Random Forest (30 Trees)</b>", table_cell_bold), Paragraph("<b>94.85% +- 0.72%</b>", table_cell_bold), Paragraph("<b>0.9486 +- 0.007</b>", table_cell_bold), Paragraph("10.82s", table_cell), Paragraph("Best overall performance; reduced variance by 5.2x.", table_cell)],
-        [Paragraph("<b>AdaBoost SAMME (35 Rounds)</b>", table_cell), Paragraph("87.25% +- 0.00%", table_cell), Paragraph("0.8758 +- 0.000", table_cell), Paragraph("9.62s", table_cell), Paragraph("Good accuracy on clean data, but sensitive to noise.", table_cell)],
-    ]
+    summary_data = [[Paragraph("Model", table_cell_header), Paragraph("Test Accuracy", table_cell_header), Paragraph("Macro-F1", table_cell_header), Paragraph("Training Time", table_cell_header), Paragraph("Key Findings", table_cell_header)]]
+    for model_name, row in res['d_comparative_table'].items():
+        summary_data.append([
+            Paragraph(f"<b>{model_name}</b>", table_cell),
+            Paragraph(row['accuracy'], table_cell),
+            Paragraph(row['macro_f1'], table_cell),
+            Paragraph("See runtime plot", table_cell),
+            Paragraph("Five manual stratified splits; metrics computed manually.", table_cell),
+        ])
     t_summary = Table(summary_data, colWidths=[1.6*inch, 1.2*inch, 1.1*inch, 0.9*inch, 2.3*inch])
     t_summary.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
@@ -350,8 +352,10 @@ def generate_pdf():
         "<br/><b>Strength vs Correlation Trade-off:</b> When max_features increased from 1 to 216, tree accuracy increased, "
         "but pairwise prediction agreement between trees rose from 0.52 to 0.88. When all features are available, every tree chooses "
         "the same dominant root splits and trees become too similar. Using max_features = sqrt(d) = 15 gave the best balance. "
-        "<br/><b>Pruning Effect:</b> Reduced-error pruning cut 28 unnecessary leaves (from 82 to 54). "
-        "This reduced the train-test gap from 15.75% to 11.25% and improved test accuracy from 84.25% to 85.25%. "
+        f"<br/><b>Pruning Effect:</b> Reduced-error pruning cut {res['a6_pruning']['unpruned_leaves']-res['a6_pruning']['pruned_leaves']} leaves "
+        f"(from {res['a6_pruning']['unpruned_leaves']} to {res['a6_pruning']['pruned_leaves']}). This reduced the train-test gap "
+        f"from {res['a6_pruning']['unpruned_gap']*100:.2f}% to {res['a6_pruning']['pruned_gap']*100:.2f}% and changed test accuracy "
+        f"from {res['a6_pruning']['unpruned_test_acc']*100:.2f}% to {res['a6_pruning']['pruned_test_acc']*100:.2f}%. "
         "<br/><b>Noise Sensitivity:</b> Figure 5 shows how models handle noise. At noise level sigma = 0.35, "
         "Random Forest kept 85.50% test accuracy, while AdaBoost collapsed to 64.25% (a 21.25% drop). "
         "AdaBoost fails under noise because it multiplies sample weights on wrong predictions, forcing later trees to memorize noisy outliers.",
