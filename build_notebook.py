@@ -322,6 +322,21 @@ a7_md = (
 )
 cells.append(nbf.v4.new_markdown_cell(a7_md))
 
+a7_examples = [
+    (item['index'], item['true_label'], item['pred_label'])
+    for item in (res['a7_paths']['correct'][:3] + res['a7_paths']['misclassified'][:3])
+]
+a7_path_code = """# Print decision paths for three correct and three incorrect test predictions
+a7_examples = __A7_EXAMPLES__
+for sample_index, true_label, expected_prediction in a7_examples:
+    steps, prediction, leaf_probs = te.get_decision_path(t_bench, X_test_s[sample_index])
+    print(f'Test index {sample_index}: true={true_label}, predicted={prediction}, expected={expected_prediction}')
+    for step in steps:
+        op = '<=' if step['val'] <= step['threshold'] else '>'
+        print(f\"  att{step['feature'] + 1}: {step['val']:.3f} {op} {step['threshold']:.3f} -> {step['branch']}\")
+""".replace('__A7_EXAMPLES__', repr(a7_examples))
+cells.append(nbf.v4.new_code_cell(a7_path_code))
+
 # Section 7: Part B - Random Forest
 sec7_md = (
     "---\n"
