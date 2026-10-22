@@ -153,9 +153,9 @@
     "pen_gain_of_best_raw": 0.09271
   },
   "a3_strategies": {
-    "quantile_runtime": 1.362,
+    "quantile_runtime": 1.549,
     "quantile_acc": 0.625,
-    "exhaustive_runtime": 1.716,
+    "exhaustive_runtime": 2.045,
     "exhaustive_acc": 0.8025
   },
   "a5_combos": {
@@ -638,10 +638,10 @@
       "AdaBoost (35)"
     ],
     "training_time_sec": [
-      3.229,
-      3.745,
-      9.167,
-      11.851
+      5.032,
+      5.667,
+      10.535,
+      10.406
     ],
     "test_accuracy": [
       0.8425,

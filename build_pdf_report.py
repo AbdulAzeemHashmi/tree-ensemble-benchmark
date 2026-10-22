@@ -6,6 +6,9 @@ Student: Abdul Azeem (24i-2013), Section: BAI-5A
 """
 
 import json
+import pandas as pd
+import numpy as np
+import tree_engine as te
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -69,6 +72,39 @@ def generate_pdf():
     
     with open('experiment_results.json', 'r') as f:
         res = json.load(f)
+
+    # Recompute the worked prediction from the saved split and report these exact votes.
+    df = pd.read_csv('mfeat-factors.csv')
+    X = df.iloc[:, :-1].to_numpy(dtype=np.float64)
+    y = (df.iloc[:, -1].to_numpy(dtype=np.int64) - 1)
+    (X_train, y_train), (X_val, y_val), (X_test, y_test) = te.manual_stratified_split(X, y, seed_offset=0)
+    X_train_s, X_val_s, X_test_s, _, _ = te.standardize_features(X_train, X_val, X_test)
+    example_tree = te.build_tree(X_train_s, y_train, max_depth=9, stop_eps=0.001)
+    example_forest = te.RandomForest(n_trees=30, max_depth=None, max_features='sqrt', stop_eps=0.001, seed_offset=99)
+    example_forest.fit(X_train_s, y_train)
+    example_boost = te.AdaBoostSAMME(n_estimators=35, max_depth=2, seed_offset=99)
+    example_boost.fit(X_train_s, y_train)
+    example_x = X_test_s[0]
+    example_true = int(y_test[0])
+    example_path, example_tree_pred, example_tree_probs = te.get_decision_path(example_tree, example_x)
+    example_votes = np.bincount([te.predict_one(t, example_x) for t in example_forest.trees], minlength=10)
+    example_forest_probs = example_forest.predict_proba(example_x.reshape(1, -1))[0]
+    example_boost_scores = np.zeros(10)
+    for weak_tree, weight in zip(example_boost.estimators, example_boost.estimator_weights):
+        example_boost_scores[te.predict_one(weak_tree, example_x)] += weight
+    example_boost_pred = int(np.argmax(example_boost_scores))
+    example_path_text = '<br/>'.join(
+        f"Depth {s['depth']}: att{s['feature'] + 1} = {s['val']:.3f} &le; {s['threshold']:.3f} "
+        f"({s['branch']})" if s['branch'].startswith('Left') else
+        f"Depth {s['depth']}: att{s['feature'] + 1} = {s['val']:.3f} &gt; {s['threshold']:.3f} "
+        f"({s['branch']})"
+        for s in example_path
+    )
+    example_vote_text = '<br/>'.join(
+        f"Digit {c}: {int(example_votes[c])} trees"
+        for c in np.flatnonzero(example_votes)
+    )
+    example_boost_top = np.argsort(example_boost_scores)[-2:][::-1]
         
     styles = getSampleStyleSheet()
     
