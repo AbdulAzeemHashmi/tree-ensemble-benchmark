@@ -288,16 +288,15 @@ def best_split_exhaustive(X, y, lam=LAMBDA_PENALTY, rho_arr=None, roll_number=RO
         cum_counts_R = total_counts - cum_counts_L
         cum_w_R = total_w - cum_w_L
         
-        # Calculate entropy of left partitions
-        P_L = cum_counts_L / cum_w_L[:, None]
-        # P_L^alpha * log_b(P_L + eps)
-        # Vectorized safe entropy computation
+        # Calculate entropy of left partitions safely
+        P_L = np.clip(cum_counts_L / np.maximum(cum_w_L[:, None], EPS), 0.0, 1.0)
         log_P_L = np.log(P_L + EPS) / log_b_const
         H_L = -np.sum(np.where(P_L > 0, (P_L ** alpha) * log_P_L, 0.0), axis=1)
         H_L = np.maximum(0.0, H_L)
         
-        # Calculate entropy of right partitions
-        P_R = cum_counts_R / cum_w_R[:, None]
+        # Calculate entropy of right partitions safely
+        cum_w_R_safe = np.maximum(cum_w_R[:, None], EPS)
+        P_R = np.clip(cum_counts_R / cum_w_R_safe, 0.0, 1.0)
         log_P_R = np.log(P_R + EPS) / log_b_const
         H_R = -np.sum(np.where(P_R > 0, (P_R ** alpha) * log_P_R, 0.0), axis=1)
         H_R = np.maximum(0.0, H_R)
