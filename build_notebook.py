@@ -211,11 +211,14 @@ sec6_md = (
     + img_to_html('figures/a1_entropy_curves.png') + "\n"
     "*Figure 4: Roll-based entropy H(p) plotted across class counts K from 3 to 10 for uniform, random, and skewed distributions.*\n\n"
     "**Numerical Tests for 4 Alpha Values:**\n"
-    "- alpha = 0.5: H_uniform = 2.4578, H_skewed = 1.6321 (Maximized by uniform: True), Pure node H = 0.0\n"
-    "- alpha = 1.0 (Standard Shannon Log-3): H_uniform = 2.0959, H_skewed = 1.1420 (Maximized by uniform: True), Pure node H = 0.0\n"
-    "- alpha = 1.3 (Our Roll Parameter): H_uniform = 1.0504, H_skewed = 0.6128 (Maximized by uniform: True), Pure node H = 0.0\n"
-    "- alpha = 2.0: H_uniform = 0.2096, H_skewed = 0.2315 (Maximized by uniform: **False**!), Pure node H = 0.0\n\n"
-    "**Explanation:**\n"
+)
+alpha_tests = res['a1_alpha_tests']
+for at in alpha_tests:
+    marker = ' (Our Roll Parameter)' if at['alpha'] == 1.3 else (' (Standard Shannon Log-3)' if at['alpha'] == 1.0 else '')
+    max_note = '**False**!' if not at['is_maximized_by_uniform'] else 'True'
+    sec6_md += f"- alpha = {at['alpha']}{marker}: H_uniform = {at['H_uniform']:.4f}, H_skewed = {at['H_skewed']:.4f} (Maximized by uniform: {max_note}), Pure node H = {at['H_pure']:.1f}\n"
+sec6_md += (
+    "\n**Explanation:**\n"
     "When alpha is greater than 1, probabilities are raised to a power ($p_i^{1.3} < p_i$), which compresses the entropy value. "
     "For alpha = 1.3, the uniform distribution still gives the highest entropy. "
     "However, when alpha reaches 2.0, H is no longer a true concave entropy: a skewed distribution produces higher entropy than a uniform distribution! "
@@ -370,31 +373,64 @@ sec8_md = (
 )
 cells.append(nbf.v4.new_markdown_cell(sec8_md))
 
-# Section 9: Part D - Comparative Study
+# Section 9: Part D - Comparative Study (fully dynamic from results)
+d_table = res['d_comparative_table']
+d_pair = res['d_paired_comparison']
+
+# Build per-class F1 header
+digit_headers = ' | '.join([f'Digit {i} F1' for i in range(10)])
+
+# Build rows dynamically
+def build_d_row(model_key, label, bold=False):
+    row_data = d_table[model_key]
+    f1_parts = row_data['per_class_f1']
+    # Extract just the mean part from "0.907+-0.000" format
+    f1_means = [p.split('+-')[0] for p in f1_parts]
+    f1_str = ' | '.join(f1_means)
+    if bold:
+        return f"| **{label}** | **{row_data['accuracy']}** | **{row_data['macro_f1']}** | {'** | **'.join(['**' + f for f in f1_means])}** |\n"
+    return f"| **{label}** | {row_data['accuracy']} | {row_data['macro_f1']} | {f1_str} |\n"
+
+# Find best model
+best_model = max(d_table.keys(), key=lambda k: d_table[k]['raw_acc_mean'])
+
 sec9_md = (
     "---\n"
     "# 9. Part D: Comparative Study [15 marks]\n\n"
-    "### D1. 5-Seed Performance Summary Table (Computed Manually)\n\n"
-    "| Model Architecture | Accuracy (Mean +- Std) | Macro-F1 (Mean +- Std) | Digit 0 F1 | Digit 1 F1 | Digit 2 F1 | Digit 3 F1 | Digit 4 F1 | Digit 5 F1 | Digit 6 F1 | Digit 7 F1 | Digit 8 F1 | Digit 9 F1 |\n"
-    "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|\n"
-    f"| **Decision Tree (Depth 9)** | {res['d_comparative_table']['Tree']['accuracy']} | {res['d_comparative_table']['Tree']['macro_f1']} | 0.907 | 0.747 | 0.860 | 0.857 | 0.790 | 0.784 | 0.886 | 0.881 | 0.824 | 0.895 |\n"
-    f"| **Pruned Decision Tree** | {res['d_comparative_table']['Pruned Tree']['accuracy']} | {res['d_comparative_table']['Pruned Tree']['macro_f1']} | 0.949 | 0.733 | 0.874 | 0.827 | 0.821 | 0.773 | 0.897 | 0.916 | 0.864 | 0.880 |\n"
-    f"| **Random Forest (30 Trees)** | **{res['d_comparative_table']['Random Forest']['accuracy']}** | **{res['d_comparative_table']['Random Forest']['macro_f1']}** | **0.961** | **0.942** | **0.954** | **0.925** | **0.947** | **0.946** | **0.962** | **0.961** | **0.943** | **0.945** |\n"
-    f"| **AdaBoost SAMME (35 Rounds)** | {res['d_comparative_table']['AdaBoost']['accuracy']} | {res['d_comparative_table']['AdaBoost']['macro_f1']} | 0.889 | 0.962 | 0.923 | 0.786 | 0.935 | 0.756 | 0.857 | 0.923 | 0.818 | 0.909 |\n\n"
-    "### D2. Paired Comparison: Random Forest vs AdaBoost\n"
-    "Across 5 random seeds (2013 to 2017):\n"
-    f"- **Random Forest Wins:** **{res['d_paired_comparison']['rf_wins']} out of 5 seeds** (100% win rate).\n"
-    f"- **Per-Seed Accuracy Difference:** {res['d_paired_comparison']['per_seed_diffs']}\n"
-    f"- **Mean Difference:** **+{res['d_paired_comparison']['mean_difference']*100:.2f}% +- {res['d_paired_comparison']['std_difference']*100:.2f}%**\n"
-    "- **Significance:** Random Forest was significantly better in every test with a mean lead of +7.60% (p < 0.0001).\n\n"
+    "### D1. 5-Seed Performance Summary Table (Different Data Splits Per Seed)\n\n"
+    f"| Model Architecture | Accuracy (Mean +- Std) | Macro-F1 (Mean +- Std) | {digit_headers} |\n"
+    f"|:---|:---:|:---:|{'|'.join([':---:' for _ in range(10)])}|\n"
+)
+for mk, ml in [('Tree', 'Decision Tree (Depth 9)'), ('Pruned Tree', 'Pruned Decision Tree'), 
+               ('Random Forest', 'Random Forest (30 Trees)'), ('AdaBoost', 'AdaBoost SAMME (35 Rounds)')]:
+    row = d_table[mk]
+    f1_parts = row['per_class_f1']
+    f1_means = [p.split('+-')[0] for p in f1_parts]
+    f1_str = ' | '.join(f1_means)
+    if mk == best_model:
+        sec9_md += f"| **{ml}** | **{row['accuracy']}** | **{row['macro_f1']}** | **{' | '.join(f1_means)}** |\n"
+    else:
+        sec9_md += f"| **{ml}** | {row['accuracy']} | {row['macro_f1']} | {f1_str} |\n"
+
+best_acc = d_table[best_model]['raw_acc_mean']
+best_std = d_table[best_model]['raw_acc_std']
+
+sec9_md += (
+    "\n### D2. Paired Comparison: Random Forest vs AdaBoost\n"
+    f"Across 5 random seeds (2013 to 2017), each with a different stratified data split:\n"
+    f"- **Random Forest Wins:** **{d_pair['rf_wins']} out of 5 seeds**.\n"
+    f"- **Per-Seed Accuracy Difference:** {d_pair['per_seed_diffs']}\n"
+    f"- **Mean Difference:** **+{d_pair['mean_difference']*100:.2f}% +- {d_pair['std_difference']*100:.2f}%**\n"
+    f"- **Significance:** {'Statistically meaningful (mean > 2*std)' if d_pair['statistically_meaningful'] else 'Not statistically significant at this sample size'}.\n\n"
     "### D3. Learning Curves and Training Efficiency Frontier\n\n"
     + img_to_html('figures/d_learning_curves.png') + "\n"
     "*Figure 16: Learning curves showing test accuracy vs percentage of training set used (10% to 100%).*\n\n"
     + img_to_html('figures/d_training_time_vs_accuracy.png') + "\n"
     "*Figure 17: Training time vs accuracy comparison across models.*\n\n"
     "### D4. Final Deployment Recommendation\n"
-    "**Deploy Random Forest.**\n"
-    "Random Forest gave the highest test accuracy (**94.85%**), low variance (+-0.72%), balanced F1-scores across all 10 digits (all >= 0.925), and strong noise resistance.\n"
+    f"**Deploy {best_model}.**\n"
+    f"{best_model} gave the highest test accuracy (**{best_acc*100:.2f}%**), low variance (+-{best_std*100:.2f}%), "
+    "balanced F1-scores across all 10 digits, and strong noise resistance.\n"
     "**When to use AdaBoost instead:** If deploying on a tiny embedded device where memory cannot fit 30 trees and data is guaranteed to be clean, early-stopped AdaBoost with depth-2 trees is a good compact alternative.\n"
 )
 cells.append(nbf.v4.new_markdown_cell(sec9_md))
@@ -447,54 +483,47 @@ sec11_md = (
 )
 cells.append(nbf.v4.new_markdown_cell(sec11_md))
 
-# Section 12: Mandatory Report Markdown
-sec12_md = r"""---
+# Section 12: Mandatory Report Markdown (Dynamic)
+dt_tab = res['d_comparative_table']
+prune_res = res['a6_pruning']
+var_res = res['b3_variance']
+noise_res = res['c3_noise_comparison']
+verify_res = res['e_verification']
+
+sec12_md = f"""---
 # 12. Mandatory Technical Report [10 marks]
 
 ## 1. Overview
-In this project, we implemented Decision Trees, Random Forests, and AdaBoost (SAMME multiclass) from scratch using Python and NumPy. We tested them on the Multiple Features dataset (`mfeat-factors.csv`) with 2000 handwritten digit samples across 10 classes and 216 factor attributes. All parameters were derived from roll number **24i-2013**: $\alpha = 1.3$, $b = 3$, $\lambda = 0.06$, $q = 0.13$, $\text{stop\_eps} = 0.15$, $\sigma = 0.04$, and $\text{seed} = 2013$.
+In this project, we implemented Decision Trees, Random Forests, and AdaBoost (SAMME multiclass) from scratch using Python and NumPy. We tested them on the Multiple Features dataset (`mfeat-factors.csv`) with 2000 handwritten digit samples across 10 classes and 216 factor attributes. All parameters were derived from roll number **24i-2013**: $\\alpha = 1.3$, $b = 3$, $\\lambda = 0.06$, $q = 0.13$, $\\text{{stop\\_eps}} = 0.15$, $\\sigma = 0.04$, and $\\text{{seed}} = 2013$.
 
 ## 2. Data and Setup
 The 2000 samples were partitioned using a manual stratified split into 60% training (1200 samples, 120 per digit), 20% validation (400 samples, 40 per digit), and 20% test (400 samples, 40 per digit). Features were standardized using only training statistics to prevent data leakage. SVD PCA revealed that digits 0 and 1 are well separated, while digits 3, 5, and 8 overlap in the center. A 9-point test suite verified entropy calculations, tree depth, and probability conservation.
 
 ## 3. Methods and Design Choices
-- **Decision Tree:** Uses roll-based entropy $H(p) = -\sum p_i^{1.3} \log_3(p_i)$ and penalized information gain $IG_{roll} = IG - 0.06 \times \rho(f)$, where $\rho(f)$ is the mean absolute Pearson correlation with 10 one-hot class indicators. Vectorized exhaustive splitting tests all thresholds using cumulative class counts.
-- **Random Forest:** Trains an ensemble of trees on bootstrap samples with random feature subsets of size $k = \sqrt{216} = 15$ at each split. Predictions are combined by averaging leaf probability distributions. Out-of-bag error provides a free validation estimate.
+- **Decision Tree:** Uses roll-based entropy $H(p) = -\\sum p_i^{{1.3}} \\log_3(p_i)$ and penalized information gain $IG_{{roll}} = IG - 0.06 \\times \\rho(f)$, where $\\rho(f)$ is the mean absolute Pearson correlation with 10 one-hot class indicators. Vectorized exhaustive splitting tests all thresholds using cumulative class counts.
+- **Random Forest:** Trains an ensemble of trees on bootstrap samples with random feature subsets of size $k = \\sqrt{{216}} = 15$ at each split. Predictions are combined by averaging leaf probability distributions. Out-of-bag error provides a free validation estimate.
 - **AdaBoost SAMME:** Multiclass boosting with depth-2 and depth-3 trees. Sample weights update exponentially based on error rates. An early stopping rule stops boosting when validation accuracy stops improving.
 
 ## 4. Experimental Results
-- **Decision Tree (Depth 9):** Accuracy = 84.25% $\pm$ 0.00%, Macro-F1 = 0.8430
-- **Pruned Decision Tree:** Accuracy = 85.25% $\pm$ 0.00%, Macro-F1 = 0.8533
-- **Random Forest (30 Trees):** Accuracy = **94.85% $\pm$ 0.72%**, Macro-F1 = **0.9486**
-- **AdaBoost SAMME (35 Rounds):** Accuracy = 87.25% $\pm$ 0.00%, Macro-F1 = 0.8758
+- **Decision Tree (Depth 9):** Accuracy = {dt_tab['Tree']['accuracy']}, Macro-F1 = {dt_tab['Tree']['raw_mf1_mean']:.4f}
+- **Pruned Decision Tree:** Accuracy = {dt_tab['Pruned Tree']['accuracy']}, Macro-F1 = {dt_tab['Pruned Tree']['raw_mf1_mean']:.4f}
+- **Random Forest (30 Trees):** Accuracy = **{dt_tab['Random Forest']['accuracy']}**, Macro-F1 = **{dt_tab['Random Forest']['raw_mf1_mean']:.4f}**
+- **AdaBoost SAMME (35 Rounds):** Accuracy = {dt_tab['AdaBoost']['accuracy']}, Macro-F1 = {dt_tab['AdaBoost']['raw_mf1_mean']:.4f}
 
-Random Forest won in all 5 random seeds against AdaBoost (+7.60% mean difference, $p < 0.0001$). Reduced-error pruning reduced leaves from 82 to 54 and narrowed the train-test gap from 15.75% to 11.25%.
+Random Forest won in {d_pair['rf_wins']} out of 5 random seeds against AdaBoost (+{d_pair['mean_difference']*100:.2f}% mean difference). Reduced-error pruning reduced leaves from {prune_res['unpruned_leaves']} to {prune_res['pruned_leaves']} and narrowed the train-test gap from {prune_res['unpruned_gap']*100:.2f}% to {prune_res['pruned_gap']*100:.2f}%.
 
 ## 5. Detailed Analysis
-- **Bias and Variance:** Single trees reached 100% training accuracy but had high variance ($\pm 1.75\%$). Random Forest reduced variance by 5.21x ($\pm 0.77\%$) and boosted mean accuracy to 93.41%.
-- **Noise Robustness:** At noise level $\sigma = 0.35$, Random Forest kept 85.5% accuracy, while AdaBoost dropped to 64.2% because it over-fits corrupted training samples.
-- **scikit-learn Verification:** Our models matched scikit-learn baselines within 1.75% (DT: 84.25% vs 82.50%, RF: 95.75% vs 95.50%, AdaBoost: 87.25% vs 86.75%).
+- **Bias and Variance:** Single trees reached 100% training accuracy but had high variance (+-{var_res['single_tree_std']*100:.2f}%). Random Forest reduced variance by {var_res['variance_reduction_factor']}x (+-{var_res['forest_std']*100:.2f}%) and boosted mean accuracy to {var_res['forest_mean']*100:.2f}%.
+- **Noise Robustness:** At noise level $\\sigma = 0.35$, Random Forest kept {noise_res['rf_accuracy'][4]*100:.1f}% accuracy, while AdaBoost dropped to {noise_res['adaboost_accuracy'][4]*100:.1f}% because it over-fits corrupted training samples.
+- **scikit-learn Verification:** Our models matched scikit-learn baselines within {max(abs(v['Gap (% pts)']) for v in verify_res):.2f}% (DT: {verify_res[0]['From-Scratch Accuracy']} vs {verify_res[0]['scikit-learn Accuracy']}, RF: {verify_res[1]['From-Scratch Accuracy']} vs {verify_res[1]['scikit-learn Accuracy']}, AdaBoost: {verify_res[2]['From-Scratch Accuracy']} vs {verify_res[2]['scikit-learn Accuracy']}).
 
 ## 6. Limitations
 1. **Factor Attributes:** The 216 features are pre-calculated factor variables, so findings might not directly transfer to raw image pixel grids.
 2. **Search Limits:** We tested ensembles up to 150 trees and AdaBoost up to 100 rounds. Larger forests might give minor additional gains.
-3. **Strict Stopping Formula:** The parameter $\text{stop\_eps} = 0.15$ is larger than the maximum possible information gain at the root (0.1087), requiring depth-based overrides.
+3. **Strict Stopping Formula:** The parameter $\\text{{stop\\_eps}} = 0.15$ is larger than the maximum possible information gain at the root ({res['a2_penalized']['best_raw_gain']:.4f}), requiring depth-based overrides.
 
 ## 7. Recommendation and Worked Prediction Example
-**Recommendation:** Deploy **Random Forest**. It achieved the highest accuracy (94.85%), balanced F1-scores across all digits ($\ge 0.925$), and strong noise resistance.
-
-**Worked Prediction Trace for Test Sample #0 (True Label = Digit 7):**
-1. **Decision Tree Path:**
-   - Step 1: Feature att97 (0.428) $\le 0.449$ -> go Left.
-   - Step 2: Feature att65 (-0.812) $\le -0.315$ -> go Left.
-   - Step 3: Feature att29 (1.104) $> 0.512$ -> go Right.
-   - Step 4: Feature att185 (-0.220) $\le 0.110$ -> go Left.
-   - Terminal Leaf: Class 7 has 93.3% probability. **Prediction = Digit 7** (Correct).
-2. **Random Forest Ensembling:**
-   - 29 trees voted for Digit 7, 1 tree voted for Digit 2.
-   - Averaged probabilities: $P(\text{Digit } 7) = 0.942$, $P(\text{Digit } 2) = 0.038$. **Prediction = Digit 7** (Correct).
-3. **AdaBoost Ensembling:**
-   - Summed weighted score for Digit 7 = 42.81, runner-up Digit 2 = 4.15. **Prediction = Digit 7** (Correct).
+**Recommendation:** Deploy **{best_model}**. It achieved the highest accuracy ({best_acc*100:.2f}%), balanced F1-scores across all digits, and strong noise resistance.
 """
 cells.append(nbf.v4.new_markdown_cell(sec12_md))
 
