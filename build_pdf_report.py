@@ -57,7 +57,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 def generate_pdf():
-    pdf_filename = "24i-2013_abdul_azeem_BAI-5A_report.pdf"
+    pdf_filename = "24i-2013_abdul_BAI-5A_report.pdf"
     doc = SimpleDocTemplate(
         pdf_filename,
         pagesize=letter,

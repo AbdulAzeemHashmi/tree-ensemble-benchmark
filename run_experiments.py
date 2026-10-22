@@ -15,8 +15,6 @@ import matplotlib
 matplotlib.use('Agg')
 
 import tree_engine as te
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 
 os.makedirs('figures', exist_ok=True)
 results = {}
@@ -880,6 +878,8 @@ plt.close()
 
 # === Part E: Verification Against scikit-learn ===
 print("=== 6. Running Part E scikit-learn Verification Baseline ===")
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 sk_dt = DecisionTreeClassifier(max_depth=9, random_state=te.BASE_SEED)
 sk_dt.fit(X_train_s, y_train)
 sk_dt_acc = sk_dt.score(X_test_s, y_test)

@@ -8,6 +8,7 @@ Student: Abdul Azeem (24i-2013), Section: BAI-5A
 
 import json
 import base64
+from pathlib import Path
 import nbformat as nbf
 
 def img_to_html(path):
@@ -82,15 +83,18 @@ import matplotlib.pyplot as plt
 import time
 import copy
 
-# Import our verified from-scratch Tree Engine
-import tree_engine as te
+# Embed the from-scratch implementation so the submitted notebook is self-contained.
+import types
+_tree_engine_source = __TREE_ENGINE_SOURCE__
+te = types.ModuleType('tree_engine')
+exec(compile(_tree_engine_source, 'tree_engine.py', 'exec'), te.__dict__)
 
 # Visualization styling
 plt.rcParams['figure.dpi'] = 120
 plt.rcParams['font.sans-serif'] = 'DejaVu Sans'
 plt.rcParams['axes.edgecolor'] = '#333333'
 plt.rcParams['axes.linewidth'] = 0.8
-"""
+""".replace('__TREE_ENGINE_SOURCE__', repr(Path('tree_engine.py').read_text(encoding='utf-8')))
 cells.append(nbf.v4.new_code_cell(cell_imports))
 
 # Section 5: Setup, EDA and Tests
@@ -199,6 +203,21 @@ assert np.sum(cm_test) == 4, "Assert 9 Failed: Confusion matrix sample count mis
 print(">> SUCCESS: All 9 Assert Statements Passed Verification!")
 """
 cells.append(nbf.v4.new_code_cell(tests_code))
+
+# Embed the experiment driver so the notebook can reproduce Parts A-E by itself.
+experiment_source = Path('run_experiments.py').read_text(encoding='utf-8')
+experiment_source = experiment_source.replace('import tree_engine as te\n', '')
+experiment_source = experiment_source.replace(
+    'print("=== 6. Running Part E scikit-learn Verification Baseline ===")',
+    'print("=== 6. Running Part E scikit-learn Verification Baseline ===")\n'
+    'from sklearn.tree import DecisionTreeClassifier\n'
+    'from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier'
+)
+experiment_code = (
+    "# Reproduce all experiments with the embedded scratch implementation\n"
+    "exec(compile(" + repr(experiment_source) + ", 'run_experiments.py', 'exec'))"
+)
+cells.append(nbf.v4.new_code_cell(experiment_code))
 
 # Section 6: Part A - Decision Tree Classifier
 sec6_md = (
@@ -528,14 +547,6 @@ Random Forest won in {d_pair['rf_wins']} out of 5 random seeds against AdaBoost 
 cells.append(nbf.v4.new_markdown_cell(sec12_md))
 
 nb['cells'] = cells
-with open('24i-2013_abdul_azeem_BAI-5A.ipynb', 'w', encoding='utf-8') as f:
-    nbf.write(nb, f)
-
-# Also create aliases for submission robustness
 with open('24i-2013_abdul_BAI-5A.ipynb', 'w', encoding='utf-8') as f:
     nbf.write(nb, f)
-
-with open('24i-2013_azeem_BAI-5A.ipynb', 'w', encoding='utf-8') as f:
-    nbf.write(nb, f)
-
-print("Generated Jupyter Notebook: 24i-2013_abdul_azeem_BAI-5A.ipynb successfully!")
+print("Generated Jupyter Notebook: 24i-2013_abdul_BAI-5A.ipynb successfully!")
