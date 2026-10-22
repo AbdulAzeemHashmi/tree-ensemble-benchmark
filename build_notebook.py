@@ -46,6 +46,8 @@ cells.append(nbf.v4.new_markdown_cell(title_md))
 
 # Cell 1: Print roll number parameters in first executable cell
 cell1_code = """# Cell 1: Roll-Number Parameters Verification
+import numpy as np
+
 roll = 2013
 digits = [int(d) for d in str(roll)] # [2, 0, 1, 3]
 
