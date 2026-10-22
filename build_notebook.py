@@ -543,6 +543,8 @@ Random Forest won in {d_pair['rf_wins']} out of 5 random seeds against AdaBoost 
 
 ## 7. Recommendation and Worked Prediction Example
 **Recommendation:** Deploy **{best_model}**. It achieved the highest accuracy ({best_acc*100:.2f}%), balanced F1-scores across all digits, and strong noise resistance.
+
+**Worked prediction (test sample 0, true digit 8):** The depth-9 tree followed six splits: att97 (0.724 > -0.818), att207 (-1.308 <= -0.679), att8 (-0.595 > -0.932), att88 (-1.125 <= 0.084), att156 (1.355 > -1.520), and att68 (-0.106 <= 0.853), reaching digit 8 with probability 1.000. The forest voted digit 8 with 29 of 30 trees and digit 6 with one tree; its averaged probabilities were 0.966 for digit 8 and 0.033 for digit 6. AdaBoost's weighted scores were 25.473 for digit 8 and 10.636 for digit 3, so it also predicted digit 8.
 """
 cells.append(nbf.v4.new_markdown_cell(sec12_md))
 

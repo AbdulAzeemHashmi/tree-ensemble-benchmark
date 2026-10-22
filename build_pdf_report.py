@@ -378,9 +378,11 @@ def generate_pdf():
     story.append(Paragraph("<b>Verification Against scikit-learn (Table 2):</b>", h2_style))
     verif_data = [
         [Paragraph("Model", table_cell_header), Paragraph("Our Scratch Code", table_cell_header), Paragraph("scikit-learn Baseline", table_cell_header), Paragraph("Difference", table_cell_header), Paragraph("Explanation of Any Gap", table_cell_header)],
-        [Paragraph("<b>Decision Tree</b>", table_cell), Paragraph("84.25%", table_cell), Paragraph("82.50%", table_cell), Paragraph("<b>+1.75%</b>", table_cell), Paragraph("Our tree benefits from the correlation penalty lambda = 0.06.", table_cell)],
-        [Paragraph("<b>Random Forest</b>", table_cell), Paragraph("95.75%", table_cell), Paragraph("95.50%", table_cell), Paragraph("<b>+0.25%</b>", table_cell), Paragraph("Nearly identical; both use sqrt(d)=15 features and bootstrap aggregation.", table_cell)],
-        [Paragraph("<b>AdaBoost SAMME</b>", table_cell), Paragraph("87.25%", table_cell), Paragraph("86.75%", table_cell), Paragraph("<b>+0.50%</b>", table_cell), Paragraph("Both implement the SAMME algorithm with depth-2 weak trees.", table_cell)],
+        *[[Paragraph(f"<b>{row['Model Family']}</b>", table_cell),
+           Paragraph(row['From-Scratch Accuracy'], table_cell),
+           Paragraph(row['scikit-learn Accuracy'], table_cell),
+           Paragraph(f"<b>{row['Gap (% pts)']:+.2f}%</b>", table_cell),
+           Paragraph(row['Notes'], table_cell)] for row in res['e_verification']],
     ]
     t_verif = Table(verif_data, colWidths=[1.5*inch, 1.3*inch, 1.3*inch, 1.0*inch, 2.0*inch])
     t_verif.setStyle(TableStyle([
@@ -393,7 +395,8 @@ def generate_pdf():
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F7FAFC')])
     ]))
     story.append(t_verif)
-    story.append(Paragraph("<b>Table 2:</b> scikit-learn verification baseline (all differences are under 1.75%, meeting the 3% requirement).", caption_style))
+    max_gap = max(abs(row['Gap (% pts)']) for row in res['e_verification'])
+    story.append(Paragraph(f"<b>Table 2:</b> scikit-learn verification baseline (largest absolute gap: {max_gap:.2f} percentage points).", caption_style))
     
     # Page Break to Page 4
     story.append(PageBreak())
@@ -406,60 +409,55 @@ def generate_pdf():
         "<br/>2. <b>Search Range:</b> Due to time limits, we tested forests up to 150 trees and AdaBoost up to 100 rounds. "
         "Testing more trees or tuning tree depth further could give small additional gains. "
         "<br/>3. <b>Strict Stopping Parameter:</b> The formula-derived stop_eps = 0.15 is larger than the maximum information gain "
-        "at the root node (0.1087). If applied strictly without depth controls, it stops tree building before the first split.",
+        f"at the root node ({res['a2_penalized']['best_raw_gain']:.4f}). If applied strictly without depth controls, it stops tree building before the first split.",
         body_style
     ))
     
     # 7. Recommendation and Worked Example
     story.append(Paragraph("7. Recommendation and Worked Example", h1_style))
     story.append(Paragraph(
-        "<b>Recommendation:</b> We recommend deploying <b>Random Forest</b>. Over 5 seeds, Random Forest achieved an average "
-        "accuracy of <b>94.85%</b>, a Macro-F1 score of <b>0.9486</b>, low variance (+-0.72%), and strong noise resistance. "
-        "It won in 5 out of 5 tests against AdaBoost with an average lead of +7.60%. "
+        f"<b>Recommendation:</b> We recommend deploying <b>Random Forest</b>. Over 5 seeds, it achieved accuracy "
+        f"<b>{res['d_comparative_table']['Random Forest']['accuracy']}</b> and Macro-F1 "
+        f"<b>{res['d_comparative_table']['Random Forest']['macro_f1']}</b>. It won in "
+        f"{res['d_paired_comparison']['rf_wins']} out of 5 tests against AdaBoost with an average lead of "
+        f"+{res['d_paired_comparison']['mean_difference']*100:.2f}%. "
         "<br/><i>When to use AdaBoost instead:</i> If deploying on small micro-controllers with very little RAM (where 30 trees cannot fit) "
         "and clean data is guaranteed, an early-stopped AdaBoost with depth-2 learners provides a lightweight option.",
         body_style
     ))
     story.append(Spacer(1, 4))
     
-    story.append(Paragraph("<b>Step-by-Step Test Prediction (Test Sample #0, True Label = Digit 7):</b>", h2_style))
+    story.append(Paragraph(f"<b>Step-by-Step Test Prediction (test sample 0, true label = digit {example_true}):</b>", h2_style))
     
     worked_data = [
         [Paragraph("Model", table_cell_header), Paragraph("Decision Steps and Voting", table_cell_header), Paragraph("Predicted Probabilities", table_cell_header), Paragraph("Prediction", table_cell_header)],
         [
             Paragraph("<b>Single Decision Tree</b>", table_cell_bold),
             Paragraph(
-                "Step 1: att97 (0.428) &le; 0.449 &rarr; go <b>Left</b><br/>"
-                "Step 2: att65 (-0.812) &le; -0.315 &rarr; go <b>Left</b><br/>"
-                "Step 3: att29 (1.104) &gt; 0.512 &rarr; go <b>Right</b><br/>"
-                "Step 4: att185 (-0.220) &le; 0.110 &rarr; go <b>Left</b>",
+                example_path_text,
                 table_cell
             ),
-            Paragraph("P(Digit 7) = 0.933<br/>P(Digit 2) = 0.067<br/>Other digits = 0.000", table_cell),
-            Paragraph("<b>Digit 7</b><br/>(Correct)", table_cell_bold)
+            Paragraph('<br/>'.join(f"P(Digit {c}) = {example_tree_probs[c]:.3f}" for c in np.argsort(example_tree_probs)[-2:][::-1]), table_cell),
+            Paragraph(f"<b>Digit {example_tree_pred}</b><br/>({'Correct' if example_tree_pred == example_true else 'Incorrect'})", table_cell_bold)
         ],
         [
             Paragraph("<b>Random Forest (30 Trees)</b>", table_cell_bold),
             Paragraph(
-                "- 29 trees voted for <b>Digit 7</b><br/>"
-                "- 1 tree voted for <b>Digit 2</b><br/>"
-                "- 0 trees voted for other digits<br/>"
-                "Agreement = 96.7%",
+                example_vote_text,
                 table_cell
             ),
-            Paragraph("Averaged Probabilities:<br/><b>P(Digit 7) = 0.942</b><br/>P(Digit 2) = 0.038<br/>Other digits &le; 0.005", table_cell),
-            Paragraph("<b>Digit 7</b><br/>(Correct)", table_cell_bold)
+            Paragraph('<br/>'.join(f"P(Digit {c}) = {example_forest_probs[c]:.3f}" for c in np.argsort(example_forest_probs)[-2:][::-1]), table_cell),
+            Paragraph(f"<b>Digit {int(np.argmax(example_forest_probs))}</b><br/>({'Correct' if int(np.argmax(example_forest_probs)) == example_true else 'Incorrect'})", table_cell_bold)
         ],
         [
             Paragraph("<b>AdaBoost SAMME (35 Rounds)</b>", table_cell_bold),
             Paragraph(
-                "- Weighted vote sum for Digit 7 = <b>42.81</b><br/>"
-                "- Weighted vote sum for Digit 2 = <b>4.15</b><br/>"
-                "Lead over runner-up = +38.66",
+                f"Weighted score digit {int(example_boost_top[0])}: <b>{example_boost_scores[example_boost_top[0]]:.3f}</b><br/>"
+                f"Weighted score digit {int(example_boost_top[1])}: {example_boost_scores[example_boost_top[1]]:.3f}",
                 table_cell
             ),
-            Paragraph("Score vector argmax:<br/>Score(Digit 7) is much higher than Score(Digit 2)", table_cell),
-            Paragraph("<b>Digit 7</b><br/>(Correct)", table_cell_bold)
+            Paragraph(f"SAMME argmax = digit {example_boost_pred}", table_cell),
+            Paragraph(f"<b>Digit {example_boost_pred}</b><br/>({'Correct' if example_boost_pred == example_true else 'Incorrect'})", table_cell_bold)
         ]
     ]
     t_worked = Table(worked_data, colWidths=[1.5*inch, 2.7*inch, 1.8*inch, 1.1*inch])
