@@ -650,7 +650,7 @@ for idx in top10_w50_idx:
 results['c2_top_weighted_samples'] = top10_samples_table
 
 # C3. Boosting Under Noise: AdaBoost vs Random Forest
-rf_clean_eval = te.RandomForest(n_trees=35, max_depth=8, seed_offset=55).fit(X_train_s, y_train)
+rf_clean_eval = te.RandomForest(n_trees=35, max_depth=8, stop_eps=0.001, seed_offset=55).fit(X_train_s, y_train)
 ada_clean_eval = te.AdaBoostSAMME(n_estimators=35, max_depth=2, seed_offset=55).fit(X_train_s, y_train)
 
 noise_sigmas = [0.0, 0.04, 0.1, 0.2, 0.35, 0.5]
@@ -698,7 +698,7 @@ results['c4_bonus'] = {
     'conclusion': 'Early stopping prevented overfitting after round ' + str(early_stopped_rounds) + ' with equivalent/higher test accuracy and reduced training runtime.'
 }
 
-# === Part D: Comparative Study (5 Seeds) ===
+# === Part D: Comparative Study (5 Seeds with Different Data Splits) ===
 print("=== 5. Running Part D Comparative Study (5 Seeds) ===")
 seeds = [2013, 2014, 2015, 2016, 2017]
 model_names = ['Tree', 'Pruned Tree', 'Random Forest', 'AdaBoost']
@@ -706,36 +706,40 @@ seed_metrics = {m: {'acc': [], 'macro_f1': [], 'f1_per_class': []} for m in mode
 
 for s_idx, s in enumerate(seeds):
     print(f"Running Seed {s} ({s_idx+1}/5)...")
+    # Create a different data split for each seed to get meaningful variance
+    (Xtr_s, ytr_s), (Xv_s, yv_s), (Xte_s, yte_s) = te.manual_stratified_split(X, y, seed_offset=s)
+    Xtr_ss, Xv_ss, Xte_ss, _, _ = te.standardize_features(Xtr_s, Xv_s, Xte_s)
+    
     # Tree (Depth 9)
-    dt_s = te.build_tree(X_train_s, y_train, max_depth=9, stop_eps=0.001, rng=te.get_rng(s))
-    preds_dt = te.predict(dt_s, X_test_s)
-    m_dt = te.classification_metrics_manual(y_test, preds_dt)
+    dt_s = te.build_tree(Xtr_ss, ytr_s, max_depth=9, stop_eps=0.001, rng=te.get_rng(s))
+    preds_dt = te.predict(dt_s, Xte_ss)
+    m_dt = te.classification_metrics_manual(yte_s, preds_dt)
     seed_metrics['Tree']['acc'].append(m_dt['accuracy'])
     seed_metrics['Tree']['macro_f1'].append(m_dt['macro_f1'])
     seed_metrics['Tree']['f1_per_class'].append(m_dt['f1_per_class'])
     
     # Pruned Tree
-    dt_pruned_s, _, _ = te.prune_tree(dt_s, X_val_s, y_val)
-    preds_pdt = te.predict(dt_pruned_s, X_test_s)
-    m_pdt = te.classification_metrics_manual(y_test, preds_pdt)
+    dt_pruned_s, _, _ = te.prune_tree(dt_s, Xv_ss, yv_s)
+    preds_pdt = te.predict(dt_pruned_s, Xte_ss)
+    m_pdt = te.classification_metrics_manual(yte_s, preds_pdt)
     seed_metrics['Pruned Tree']['acc'].append(m_pdt['accuracy'])
     seed_metrics['Pruned Tree']['macro_f1'].append(m_pdt['macro_f1'])
     seed_metrics['Pruned Tree']['f1_per_class'].append(m_pdt['f1_per_class'])
     
     # Random Forest (30 trees)
     rf_s = te.RandomForest(n_trees=30, max_depth=None, max_features='sqrt', stop_eps=0.001, seed_offset=s)
-    rf_s.fit(X_train_s, y_train)
-    preds_rf = rf_s.predict_proba_voting(X_test_s)
-    m_rf = te.classification_metrics_manual(y_test, preds_rf)
+    rf_s.fit(Xtr_ss, ytr_s)
+    preds_rf = rf_s.predict_proba_voting(Xte_ss)
+    m_rf = te.classification_metrics_manual(yte_s, preds_rf)
     seed_metrics['Random Forest']['acc'].append(m_rf['accuracy'])
     seed_metrics['Random Forest']['macro_f1'].append(m_rf['macro_f1'])
     seed_metrics['Random Forest']['f1_per_class'].append(m_rf['f1_per_class'])
     
     # AdaBoost (35 rounds, depth 2)
     ada_s = te.AdaBoostSAMME(n_estimators=35, max_depth=2, seed_offset=s)
-    ada_s.fit(X_train_s, y_train)
-    preds_ada = ada_s.predict(X_test_s)
-    m_ada = te.classification_metrics_manual(y_test, preds_ada)
+    ada_s.fit(Xtr_ss, ytr_s)
+    preds_ada = ada_s.predict(Xte_ss)
+    m_ada = te.classification_metrics_manual(yte_s, preds_ada)
     seed_metrics['AdaBoost']['acc'].append(m_ada['accuracy'])
     seed_metrics['AdaBoost']['macro_f1'].append(m_ada['macro_f1'])
     seed_metrics['AdaBoost']['f1_per_class'].append(m_ada['f1_per_class'])
